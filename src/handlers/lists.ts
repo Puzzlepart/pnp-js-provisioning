@@ -118,6 +118,7 @@ export class Lists extends HandlerBase {
         const fAttr = fXmlJson.elements[0].attributes;
         const internalName = fAttr.InternalName;
         const displayName = fAttr.DisplayName;
+        Logger.log({ message: `Processing field ${internalName} (${displayName}) for list ${lc.Title}.`, level: LogLevel.Info });
         fieldXml = xmljs.json2xml(fXmlJson);
         fXmlJson.elements[0].attributes.DisplayName = internalName;
         try {
@@ -126,7 +127,6 @@ export class Lists extends HandlerBase {
             await field.delete();
         } catch (err) {
             Logger.log({ message: `Failed to remove field '${displayName}' from list ${lc.Title}.`, level: LogLevel.Warning });
-            throw err;
         }
         let fieldAddResult = await list.fields.createFieldAsXml(this.replaceFieldXmlTokens(fieldXml));
         await fieldAddResult.field.update({ Title: displayName });
@@ -176,18 +176,18 @@ export class Lists extends HandlerBase {
      *
      * @param {Web} web The web
      * @param {IList} lc The list configuration
-     * @param {IListView} view The view configuration
+     * @param {IListView} lvc The view configuration
      */
-    private async processView(web: Web, lc: IList, view: IListView): Promise<void> {
-        let _view = web.lists.getByTitle(lc.Title).views.getByTitle(view.Title);
+    private async processView(web: Web, lc: IList, lvc: IListView): Promise<void> {
+        let view = web.lists.getByTitle(lc.Title).views.getByTitle(lvc.Title);
         try {
-            await _view.get();
-            await _view.update(view.AdditionalSettings);
-            await this.processViewFields(_view, view.ViewFields);
+            await view.get();
+            await view.update(lvc.AdditionalSettings);
+            await this.processViewFields(view, lvc.ViewFields);
         } catch (err) {
-            const result = await web.lists.getByTitle(lc.Title).views.add(view.Title, view.PersonalView, view.AdditionalSettings);
-            Logger.log({ level: LogLevel.Info, message: `View ${view.Title} added successfully to list ${lc.Title}.` });
-            await this.processViewFields(result.view, view.ViewFields);
+            const result = await web.lists.getByTitle(lc.Title).views.add(lvc.Title, lvc.PersonalView, lvc.AdditionalSettings);
+            Logger.log({ level: LogLevel.Info, message: `View ${lvc.Title} added successfully to list ${lc.Title}.` });
+            await this.processViewFields(result.view, lvc.ViewFields);
         }
     }
 
@@ -197,10 +197,9 @@ export class Lists extends HandlerBase {
      * @param {any} view The pnp view
      * @param {Array<string>} viewFields Array of view fields
      */
-    private async processViewFields(view: any, viewFields: string[]): Promise<void> {
+    private async processViewFields(view, viewFields: string[]): Promise<void> {
         await view.fields.removeAll();
         await viewFields.reduce((chain, viewField) => chain.then(_ => view.fields.add(viewField)), Promise.resolve());
-
     }
 
     /**

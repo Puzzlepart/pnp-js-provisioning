@@ -85,9 +85,9 @@ export declare class Lists extends HandlerBase {
      *
      * @param {Web} web The web
      * @param {IList} lc The list configuration
-     * @param {IListView} view The view configuration
+     * @param {IListView} lvc The view configuration
      */
-    private processView(web, lc, view);
+    private processView(web, lc, lvc);
     /**
      * Processes view fields for a view
      *
