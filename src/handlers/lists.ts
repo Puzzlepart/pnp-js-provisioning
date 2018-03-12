@@ -126,8 +126,9 @@ export class Lists extends HandlerBase {
         try {
             let field = await list.fields.getById(fAttr.ID);
             await field.delete();
+            Logger.log({ message: `Field ${internalName} (${displayName}) successfully deleted from list ${lc.Title}.`, level: LogLevel.Info });
         } catch (err) {
-            Logger.log({ message: `Failed to remove field '${displayName}' from list ${lc.Title}.`, level: LogLevel.Warning });
+            Logger.log({ message: `Field does not exist ${internalName} (${displayName}) in list ${lc.Title}.`, level: LogLevel.Info });
         }
 
         let fieldAddResult = await list.fields.createFieldAsXml(this.replaceFieldXmlTokens(fieldXml));
