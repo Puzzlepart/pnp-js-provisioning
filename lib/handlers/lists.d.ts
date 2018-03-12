@@ -22,26 +22,26 @@ export declare class Lists extends HandlerBase {
      * Processes a list
      *
      * @param {Web} web The web
-     * @param {IList} list The list
+     * @param {IList} lc The list
      */
-    private processList(web, conf);
+    private processList(web, lc);
     /**
      * Processes content type bindings for a list
      *
-     * @param {IList} conf The list configuration
+     * @param {IList} lc The list configuration
      * @param {List} list The pnp list
      * @param {Array<IContentTypeBinding>} contentTypeBindings Content type bindings
      * @param {boolean} removeExisting Remove existing content type bindings
      */
-    private processContentTypeBindings(conf, list, contentTypeBindings, removeExisting);
+    private processContentTypeBindings(lc, list, contentTypeBindings, removeExisting);
     /**
      * Processes a content type binding for a list
      *
-     * @param {IList} conf The list configuration
+     * @param {IList} lc The list configuration
      * @param {List} list The pnp list
      * @param {string} contentTypeID The Content Type ID
      */
-    private processContentTypeBinding(conf, list, contentTypeID);
+    private processContentTypeBinding(lc, list, contentTypeID);
     /**
      * Processes fields for a list
      *
@@ -53,10 +53,10 @@ export declare class Lists extends HandlerBase {
      * Processes a field for a lit
      *
      * @param {Web} web The web
-     * @param {IList} conf The list configuration
+     * @param {IList} lc The list configuration
      * @param {string} fieldXml Field xml
      */
-    private processField(web, conf, fieldXml);
+    private processField(web, lc, fieldXml);
     /**
    * Processes field refs for a list
    *
@@ -65,28 +65,29 @@ export declare class Lists extends HandlerBase {
    */
     private processFieldRefs(web, list);
     /**
+     *
      * Processes a field ref for a list
      *
      * @param {Web} web The web
-     * @param {IList} conf The list configuration
+     * @param {IList} lc The list configuration
      * @param {IListInstanceFieldRef} fieldRef The list field ref
      */
-    private processFieldRef(web, conf, fieldRef);
+    private processFieldRef(web, lc, fieldRef);
     /**
      * Processes views for a list
      *
      * @param web The web
-     * @param conf The view configuration
+     * @param lc The list configuration
      */
-    private processViews(web, conf);
+    private processViews(web, lc);
     /**
      * Processes a view for a list
      *
      * @param {Web} web The web
-     * @param {IList} conf The list configuration
+     * @param {IList} lc The list configuration
      * @param {IListView} view The view configuration
      */
-    private processView(web, conf, view);
+    private processView(web, lc, view);
     /**
      * Processes view fields for a view
      *
