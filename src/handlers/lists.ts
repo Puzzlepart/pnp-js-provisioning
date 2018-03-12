@@ -121,13 +121,15 @@ export class Lists extends HandlerBase {
         Logger.log({ message: `Processing field ${internalName} (${displayName}) for list ${lc.Title}.`, level: LogLevel.Info });
         fieldXml = xmljs.json2xml(fXmlJson);
         fXmlJson.elements[0].attributes.DisplayName = internalName;
+
+        // Looks like e.g. lookup fields can't be updated, so we'll need to re-create the field
         try {
-            // Looks like e.g. lookup fields can't be updated, so we'll need to reac
             let field = await list.fields.getById(fAttr.ID);
             await field.delete();
         } catch (err) {
             Logger.log({ message: `Failed to remove field '${displayName}' from list ${lc.Title}.`, level: LogLevel.Warning });
         }
+
         let fieldAddResult = await list.fields.createFieldAsXml(this.replaceFieldXmlTokens(fieldXml));
         await fieldAddResult.field.update({ Title: displayName });
         Logger.log({ message: `Field '${displayName}' added successfully to list ${lc.Title}.`, level: LogLevel.Info });
