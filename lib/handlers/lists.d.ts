@@ -92,9 +92,9 @@ export declare class Lists extends HandlerBase {
      * Processes view fields for a view
      *
      * @param {any} view The pnp view
-     * @param {Array<string>} viewFields Array of view fields
+     * @param {IListView} lvc The view configuration
      */
-    private processViewFields(view, viewFields);
+    private processViewFields(view, lvc);
     /**
      * Replaces tokens in field xml
      *

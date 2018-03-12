@@ -88,8 +88,12 @@ export class Lists extends HandlerBase {
      * @param {string} contentTypeID The Content Type ID
      */
     private async processContentTypeBinding(lc: IList, list: List, contentTypeID: string): Promise<any> {
-        await list.contentTypes.addAvailableContentType(contentTypeID);
-        Logger.log({ level: LogLevel.Info, message: `Content Type ${contentTypeID} added successfully to list ${lc.Title}.` });
+        try {
+            await list.contentTypes.addAvailableContentType(contentTypeID);
+            Logger.log({ message: `Content Type ${contentTypeID} added successfully to list ${lc.Title}.`, level: LogLevel.Info });
+        } catch (err) {
+            Logger.log({ message: `Failed to add Content Type ${contentTypeID} to list ${lc.Title}.`, level: LogLevel.Warning });
+        }
     }
 
 
@@ -131,9 +135,14 @@ export class Lists extends HandlerBase {
             Logger.log({ message: `Field does not exist ${internalName} (${displayName}) in list ${lc.Title}.`, level: LogLevel.Info });
         }
 
-        let fieldAddResult = await list.fields.createFieldAsXml(this.replaceFieldXmlTokens(fieldXml));
-        await fieldAddResult.field.update({ Title: displayName });
-        Logger.log({ message: `Field '${displayName}' added successfully to list ${lc.Title}.`, level: LogLevel.Info });
+        // Looks like e.g. lookup fields can't be updated, so we'll need to re-create the field
+        try {
+            let fieldAddResult = await list.fields.createFieldAsXml(this.replaceFieldXmlTokens(fieldXml));
+            await fieldAddResult.field.update({ Title: displayName });
+            Logger.log({ message: `Field '${displayName}' added successfully to list ${lc.Title}.`, level: LogLevel.Info });
+        } catch (err) {
+            Logger.log({ message: `Failed to add field '${displayName}' to list ${lc.Title}.`, level: LogLevel.Warning });
+        }
     }
 
     /**
@@ -156,10 +165,15 @@ export class Lists extends HandlerBase {
      * @param {IList} lc The list configuration
      * @param {IListInstanceFieldRef} fieldRef The list field ref
      */
-    private async processFieldRef(web: Web, lc: IList, fieldRef: IListInstanceFieldRef): Promise<any> {
+    private async processFieldRef(web: Web, lc: IList, fieldRef: IListInstanceFieldRef): Promise<void> {
         const list = web.lists.getByTitle(lc.Title);
-        await list.fields.getById(fieldRef.ID).update({ Hidden: fieldRef.Hidden, Required: fieldRef.Required, Title: fieldRef.DisplayName });
-        Logger.log({ data: fieldRef, level: LogLevel.Info, message: `Field '${fieldRef.ID}' updated for list ${lc.Title}.` });
+
+        try {
+            await list.fields.getById(fieldRef.ID).update({ Hidden: fieldRef.Hidden, Required: fieldRef.Required, Title: fieldRef.DisplayName });
+            Logger.log({ data: fieldRef, level: LogLevel.Info, message: `Field '${fieldRef.ID}' updated for list ${lc.Title}.` });
+        } catch (err) {
+            Logger.log({ message: `Failed to update field '${fieldRef.ID}' for list ${lc.Title}.`, data: fieldRef, level: LogLevel.Warning });
+        }
     }
 
     /**
@@ -182,15 +196,16 @@ export class Lists extends HandlerBase {
      * @param {IListView} lvc The view configuration
      */
     private async processView(web: Web, lc: IList, lvc: IListView): Promise<void> {
+        Logger.log({ message: `Processing view ${lvc.Title} for list ${lc.Title}.`, level: LogLevel.Info });
         let view = web.lists.getByTitle(lc.Title).views.getByTitle(lvc.Title);
         try {
             await view.get();
             await view.update(lvc.AdditionalSettings);
-            await this.processViewFields(view, lvc.ViewFields);
+            await this.processViewFields(view, lvc);
         } catch (err) {
             const result = await web.lists.getByTitle(lc.Title).views.add(lvc.Title, lvc.PersonalView, lvc.AdditionalSettings);
-            Logger.log({ level: LogLevel.Info, message: `View ${lvc.Title} added successfully to list ${lc.Title}.` });
-            await this.processViewFields(result.view, lvc.ViewFields);
+            Logger.log({ message: `View ${lvc.Title} added successfully to list ${lc.Title}.`, level: LogLevel.Info });
+            await this.processViewFields(result.view, lvc);
         }
     }
 
@@ -198,11 +213,17 @@ export class Lists extends HandlerBase {
      * Processes view fields for a view
      *
      * @param {any} view The pnp view
-     * @param {Array<string>} viewFields Array of view fields
+     * @param {IListView} lvc The view configuration
      */
-    private async processViewFields(view, viewFields: string[]): Promise<void> {
-        await view.fields.removeAll();
-        await viewFields.reduce((chain, viewField) => chain.then(_ => view.fields.add(viewField)), Promise.resolve());
+    private async processViewFields(view, lvc: IListView): Promise<void> {
+        try {
+            Logger.log({ message: `Processing view fields for view ${lvc.Title}.`, data: { viewFields: lvc.ViewFields }, level: LogLevel.Info });
+            await view.fields.removeAll();
+            await lvc.ViewFields.reduce((chain, viewField) => chain.then(_ => view.fields.add(viewField)), Promise.resolve());
+            Logger.log({ message: `View fields successfully processed for view ${lvc.Title}.`, level: LogLevel.Info });
+        } catch (err) {
+            Logger.log({ message: `Failed to process view fields for view ${lvc.Title}.`, level: LogLevel.Info });
+        }
     }
 
     /**
