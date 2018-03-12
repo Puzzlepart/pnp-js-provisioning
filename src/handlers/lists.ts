@@ -9,6 +9,7 @@ import { Web, List, Logger, LogLevel } from "sp-pnp-js";
 export class Lists extends HandlerBase {
     private lists: any[];
     private tokenRegex = /{[a-z]*:[ÆØÅæøåA-za-z ]*}/g;
+
     /**
      * Creates a new instance of the Lists class
      */
@@ -23,94 +24,72 @@ export class Lists extends HandlerBase {
      * @param {Web} web The web
      * @param {Array<IList>} lists The lists to provision
      */
-    public ProvisionObjects(web: Web, lists: IList[]): Promise<void> {
+    public async ProvisionObjects(web: Web, lists: IList[]): Promise<void> {
         super.scope_started();
-        return new Promise<void>((resolve, reject) => {
-            lists.reduce((chain, list) => chain.then(_ => this.processList(web, list)), Promise.resolve()).then(() => {
-                lists.reduce((chain, list) => chain.then(_ => this.processFields(web, list)), Promise.resolve()).then(() => {
-                    lists.reduce((chain, list) => chain.then(_ => this.processFieldRefs(web, list)), Promise.resolve()).then(() => {
-                        lists.reduce((chain, list) => chain.then(_ => this.processViews(web, list)), Promise.resolve()).then(() => {
-                            super.scope_ended();
-                            resolve();
-                        });
-                    });
-                });
-            }).catch(e => {
-                super.scope_ended();
-                reject(e);
-            });
-        });
+        try {
+            await lists.reduce((chain, list) => chain.then(_ => this.processList(web, list)), Promise.resolve());
+            await lists.reduce((chain, list) => chain.then(_ => this.processFields(web, list)), Promise.resolve());
+            await lists.reduce((chain, list) => chain.then(_ => this.processFieldRefs(web, list)), Promise.resolve());
+            await lists.reduce((chain, list) => chain.then(_ => this.processViews(web, list)), Promise.resolve());
+            super.scope_ended();
+        } catch (err) {
+            super.scope_ended();
+            throw err;
+        }
     }
 
     /**
      * Processes a list
      *
      * @param {Web} web The web
-     * @param {IList} list The list
+     * @param {IList} listConfig The list
      */
-    private processList(web: Web, conf: IList): Promise<void> {
-        return new Promise<void>((resolve, reject) => {
-            web.lists.ensure(conf.Title, conf.Description, conf.Template, conf.ContentTypesEnabled, conf.AdditionalSettings).then(({ created, list, data }) => {
-                this.lists.push(data);
-                if (created) {
-                    Logger.log({ data: list, level: LogLevel.Info, message: `List ${conf.Title} created successfully.` });
-                }
-                this.processContentTypeBindings(conf, list, conf.ContentTypeBindings, conf.RemoveExistingContentTypes).then(resolve, reject);
-            });
-        });
+    private async processList(web: Web, listConfig: IList): Promise<void> {
+        const { created, list, data } = await web.lists.ensure(listConfig.Title, listConfig.Description, listConfig.Template, listConfig.ContentTypesEnabled, listConfig.AdditionalSettings);
+        this.lists.push(data);
+        if (created) {
+            Logger.log({ data: list, level: LogLevel.Info, message: `List ${listConfig.Title} created successfully.` });
+        }
+        await this.processContentTypeBindings(listConfig, list, listConfig.ContentTypeBindings, listConfig.RemoveExistingContentTypes);
     }
 
     /**
      * Processes content type bindings for a list
      *
-     * @param {IList} conf The list configuration
+     * @param {IList} listConfig The list configuration
      * @param {List} list The pnp list
      * @param {Array<IContentTypeBinding>} contentTypeBindings Content type bindings
      * @param {boolean} removeExisting Remove existing content type bindings
      */
-    private processContentTypeBindings(conf: IList, list: List, contentTypeBindings: IContentTypeBinding[], removeExisting: boolean): Promise<any> {
-        return new Promise<any>((resolve, reject) => {
-            if (contentTypeBindings) {
-                contentTypeBindings.reduce((chain, ct) => chain.then(_ => this.processContentTypeBinding(conf, list, ct.ContentTypeID)), Promise.resolve()).then(() => {
-                    if (removeExisting) {
-                        let promises = [];
-                        list.contentTypes.get().then(contentTypes => {
-                            contentTypes.forEach(({ Id: { StringValue: ContentTypeId } }) => {
-                                let shouldRemove = (contentTypeBindings.filter(ctb => ContentTypeId.indexOf(ctb.ContentTypeID) !== -1).length === 0)
-                                    && (ContentTypeId.indexOf("0x0120") === -1);
-                                if (shouldRemove) {
-                                    Logger.write(`Removing content type ${ContentTypeId} from list ${conf.Title}`, LogLevel.Info);
-                                    promises.push(list.contentTypes.getById(ContentTypeId).delete());
-                                }
-                            });
-                        });
-                        Promise.all(promises).then(resolve, reject);
-                    } else {
-                        resolve();
+    private async processContentTypeBindings(listConfig: IList, list: List, contentTypeBindings: IContentTypeBinding[], removeExisting: boolean): Promise<any> {
+        if (contentTypeBindings) {
+            await contentTypeBindings.reduce((chain, ct) => chain.then(_ => this.processContentTypeBinding(listConfig, list, ct.ContentTypeID)), Promise.resolve());
+            if (removeExisting) {
+                let promises = [];
+                const contentTypes = await list.contentTypes.get();
+                contentTypes.forEach(({ Id: { StringValue: ContentTypeId } }) => {
+                    let shouldRemove = (contentTypeBindings.filter(ctb => ContentTypeId.indexOf(ctb.ContentTypeID) !== -1).length === 0)
+                        && (ContentTypeId.indexOf("0x0120") === -1);
+                    if (shouldRemove) {
+                        Logger.write(`Removing content type ${ContentTypeId} from list ${listConfig.Title}`, LogLevel.Info);
+                        promises.push(list.contentTypes.getById(ContentTypeId).delete());
                     }
-                }).catch(e => {
-                    reject(e);
                 });
-            } else {
-                resolve();
+                await Promise.all(promises);
             }
-        });
+        }
     }
 
     /**
      * Processes a content type binding for a list
      *
-     * @param {IList} conf The list configuration
+     * @param {IList} listConfig The list configuration
      * @param {List} list The pnp list
      * @param {string} contentTypeID The Content Type ID
      */
-    private processContentTypeBinding(conf: IList, list: List, contentTypeID: string): Promise<any> {
-        return new Promise<void>((resolve, reject) => {
-            list.contentTypes.addAvailableContentType(contentTypeID).then(({ contentType }) => {
-                Logger.log({ data: contentType, level: LogLevel.Info, message: `Content Type ${contentTypeID} added successfully to list ${conf.Title}.` });
-                resolve();
-            }, reject);
-        });
+    private async processContentTypeBinding(listConfig: IList, list: List, contentTypeID: string): Promise<any> {
+        await list.contentTypes.addAvailableContentType(contentTypeID);
+        Logger.log({ level: LogLevel.Info, message: `Content Type ${contentTypeID} added successfully to list ${listConfig.Title}.` });
     }
 
 
@@ -120,35 +99,35 @@ export class Lists extends HandlerBase {
      * @param {Web} web The web
      * @param {IList} list The pnp list
      */
-    private processFields(web: Web, list: IList): Promise<any> {
-        return new Promise<void>((resolve, reject) => {
-            if (list.Fields) {
-                list.Fields.reduce((chain, field) => chain.then(_ => this.processField(web, list, field)), Promise.resolve()).then(resolve, reject);
-            } else {
-                resolve();
-            }
-        });
+    private async processFields(web: Web, list: IList): Promise<any> {
+        if (list.Fields) {
+            await list.Fields.reduce((chain, field) => chain.then(_ => this.processField(web, list, field)), Promise.resolve());
+        }
     }
 
     /**
      * Processes a field for a lit
      *
      * @param {Web} web The web
-     * @param {IList} conf The list configuration
+     * @param {IList} listConfig The list configuration
      * @param {string} fieldXml Field xml
      */
-    private processField(web: Web, conf: IList, fieldXml: string): Promise<any> {
-        return new Promise<void>((resolve, reject) => {
-            let fieldProps = JSON.parse(xmljs.xml2json(fieldXml)),
-                { InternalName, DisplayName } = fieldProps.elements[0].attributes;
-            fieldProps.elements[0].attributes.DisplayName = InternalName;
-            web.lists.getByTitle(conf.Title).fields.createFieldAsXml(this.replaceFieldXmlTokens(xmljs.json2xml(fieldProps))).then(({ data, field }) => {
-                field.update({ Title: DisplayName }).then(() => {
-                    Logger.log({ data: data, level: LogLevel.Info, message: `Field '${DisplayName}' added successfully to list ${conf.Title}.` });
-                    resolve();
-                }, reject);
-            });
-        });
+    private async processField(web: Web, listConfig: IList, fieldXml: string): Promise<any> {
+        const list = web.lists.getByTitle(listConfig.Title);
+        const fXmlJson = JSON.parse(xmljs.xml2json(fieldXml));
+        const fAttr = fXmlJson.elements[0].attributes;
+        const internalName = fAttr.InternalName;
+        const displayName = fAttr.DisplayName;
+        fieldXml = xmljs.json2xml(fXmlJson);
+        fXmlJson.elements[0].attributes.DisplayName = internalName;
+        try {
+            // Looks like e.g. lookup fields can't be updated, so we'll need to reac
+            let field = await list.fields.getById(fAttr.ID);
+            await field.delete();
+        } catch (err) { }
+        let fieldAddResult = await list.fields.createFieldAsXml(this.replaceFieldXmlTokens(fieldXml));
+        await fieldAddResult.field.update({ Title: displayName });
+        Logger.log({ message: `Field '${displayName}' added successfully to list ${listConfig.Title}.`, level: LogLevel.Info });
     }
 
     /**
@@ -157,69 +136,56 @@ export class Lists extends HandlerBase {
    * @param {Web} web The web
    * @param {IList} list The pnp list
    */
-    private processFieldRefs(web: Web, list: IList): Promise<any> {
-        return new Promise<void>((resolve, reject) => {
-            if (list.FieldRefs) {
-                list.FieldRefs.reduce((chain, fieldRef) => chain.then(_ => this.processFieldRef(web, list, fieldRef)), Promise.resolve()).then(resolve, reject);
-            } else {
-                resolve();
-            }
-        });
+    private async processFieldRefs(web: Web, list: IList): Promise<any> {
+        if (list.FieldRefs) {
+            await list.FieldRefs.reduce((chain, fieldRef) => chain.then(_ => this.processFieldRef(web, list, fieldRef)), Promise.resolve());
+        }
     }
 
     /**
+     * 
      * Processes a field ref for a list
      *
      * @param {Web} web The web
-     * @param {IList} conf The list configuration
+     * @param {IList} listConfig The list configuration
      * @param {IListInstanceFieldRef} fieldRef The list field ref
      */
-    private processFieldRef(web: Web, conf: IList, fieldRef: IListInstanceFieldRef): Promise<any> {
-        return new Promise<void>((resolve, reject) => {
-            web.lists.getByTitle(conf.Title).fields.getById(fieldRef.ID).update({ Hidden: fieldRef.Hidden, Required: fieldRef.Required, Title: fieldRef.DisplayName }).then(() => {
-                Logger.log({ data: fieldRef, level: LogLevel.Info, message: `Field '${fieldRef.ID}' updated for list ${conf.Title}.` });
-                resolve();
-            }, reject);
-        });
+    private async processFieldRef(web: Web, listConfig: IList, fieldRef: IListInstanceFieldRef): Promise<any> {
+        const list = web.lists.getByTitle(listConfig.Title);
+        await list.fields.getById(fieldRef.ID).update({ Hidden: fieldRef.Hidden, Required: fieldRef.Required, Title: fieldRef.DisplayName })
+        Logger.log({ data: fieldRef, level: LogLevel.Info, message: `Field '${fieldRef.ID}' updated for list ${listConfig.Title}.` });
     }
 
     /**
      * Processes views for a list
      *
      * @param web The web
-     * @param conf The view configuration
+     * @param listConfig The list configuration
      */
-    private processViews(web: Web, conf: IList): Promise<any> {
-        return new Promise<void>((resolve, reject) => {
-            if (conf.Views) {
-                conf.Views.reduce((chain, view) => chain.then(_ => this.processView(web, conf, view)), Promise.resolve()).then(resolve, reject);
-            } else {
-                resolve();
-            }
-        });
+    private async processViews(web: Web, listConfig: IList): Promise<any> {
+        if (listConfig.Views) {
+            await listConfig.Views.reduce((chain, view) => chain.then(_ => this.processView(web, listConfig, view)), Promise.resolve());
+        }
     }
 
     /**
      * Processes a view for a list
      *
      * @param {Web} web The web
-     * @param {IList} conf The list configuration
+     * @param {IList} listConfig The list configuration
      * @param {IListView} view The view configuration
      */
-    private processView(web: Web, conf: IList, view: IListView): Promise<void> {
-        return new Promise<void>((resolve, reject) => {
-            let _view = web.lists.getByTitle(conf.Title).views.getByTitle(view.Title);
-            _view.get().then(_ => {
-                _view.update(view.AdditionalSettings).then(() => {
-                    this.processViewFields(_view, view.ViewFields).then(resolve, reject);
-                });
-            }, () => {
-                web.lists.getByTitle(conf.Title).views.add(view.Title, view.PersonalView, view.AdditionalSettings).then(result => {
-                    Logger.log({ data: result.data, level: LogLevel.Info, message: `View ${view.Title} added successfully to list ${conf.Title}.` });
-                    this.processViewFields(result.view, view.ViewFields).then(resolve, reject);
-                }, reject);
-            });
-        });
+    private async processView(web: Web, listConfig: IList, view: IListView): Promise<void> {
+        let _view = web.lists.getByTitle(listConfig.Title).views.getByTitle(view.Title);
+        try {
+            await _view.get();
+            await _view.update(view.AdditionalSettings);
+            await this.processViewFields(_view, view.ViewFields);
+        } catch (err) {
+            const result = await web.lists.getByTitle(listConfig.Title).views.add(view.Title, view.PersonalView, view.AdditionalSettings);
+            Logger.log({ level: LogLevel.Info, message: `View ${view.Title} added successfully to list ${listConfig.Title}.` });
+            await this.processViewFields(result.view, view.ViewFields)
+        }
     }
 
     /**
@@ -228,12 +194,10 @@ export class Lists extends HandlerBase {
      * @param {any} view The pnp view
      * @param {Array<string>} viewFields Array of view fields
      */
-    private processViewFields(view: any, viewFields: string[]): Promise<void> {
-        return new Promise<void>((resolve, reject) => {
-            view.fields.removeAll().then(() => {
-                viewFields.reduce((chain, viewField) => chain.then(_ => view.fields.add(viewField)), Promise.resolve()).then(resolve, reject);
-            }, reject);
-        });
+    private async processViewFields(view: any, viewFields: string[]): Promise<void> {
+        await view.fields.removeAll();
+        await viewFields.reduce((chain, viewField) => chain.then(_ => view.fields.add(viewField)), Promise.resolve());
+
     }
 
     /**
