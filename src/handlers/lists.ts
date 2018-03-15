@@ -120,28 +120,30 @@ export class Lists extends HandlerBase {
         const list = web.lists.getByTitle(lc.Title);
         const fXmlJson = JSON.parse(xmljs.xml2json(fieldXml));
         const fAttr = fXmlJson.elements[0].attributes;
-        const internalName = fAttr.InternalName;
-        const displayName = fAttr.DisplayName;
-        Logger.log({ message: `Processing field ${internalName} (${displayName}) for list ${lc.Title}.`, level: LogLevel.Info });
-        fXmlJson.elements[0].attributes.DisplayName = internalName;
+
+        const fieldName = fAttr.Name;
+        const fieldDisplayName = fAttr.DisplayName;
+
+        Logger.log({ message: `Processing field ${fieldName} (${fieldDisplayName}) for list ${lc.Title}.`, level: LogLevel.Info });
+        fXmlJson.elements[0].attributes.DisplayName = fieldName;
         fieldXml = xmljs.json2xml(fXmlJson);
 
         // Looks like e.g. lookup fields can't be updated, so we'll need to re-create the field
         try {
             let field = await list.fields.getById(fAttr.ID);
             await field.delete();
-            Logger.log({ message: `Field ${internalName} (${displayName}) successfully deleted from list ${lc.Title}.`, level: LogLevel.Info });
+            Logger.log({ message: `Field ${fieldName} (${fieldDisplayName}) successfully deleted from list ${lc.Title}.`, level: LogLevel.Info });
         } catch (err) {
-            Logger.log({ message: `Field does not exist ${internalName} (${displayName}) in list ${lc.Title}.`, level: LogLevel.Info });
+            Logger.log({ message: `Field does not exist ${fieldName} (${fieldDisplayName}) in list ${lc.Title}.`, level: LogLevel.Info });
         }
 
         // Looks like e.g. lookup fields can't be updated, so we'll need to re-create the field
         try {
             let fieldAddResult = await list.fields.createFieldAsXml(this.replaceFieldXmlTokens(fieldXml));
-            await fieldAddResult.field.update({ Title: displayName });
-            Logger.log({ message: `Field '${displayName}' added successfully to list ${lc.Title}.`, level: LogLevel.Info });
+            await fieldAddResult.field.update({ Title: fieldDisplayName });
+            Logger.log({ message: `Field '${fieldDisplayName}' added successfully to list ${lc.Title}.`, level: LogLevel.Info });
         } catch (err) {
-            Logger.log({ message: `Failed to add field '${displayName}' to list ${lc.Title}.`, level: LogLevel.Warning });
+            Logger.log({ message: `Failed to add field '${fieldDisplayName}' to list ${lc.Title}.`, level: LogLevel.Warning });
         }
     }
 
