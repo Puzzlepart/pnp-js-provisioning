@@ -123,8 +123,8 @@ export class Lists extends HandlerBase {
         const internalName = fAttr.InternalName;
         const displayName = fAttr.DisplayName;
         Logger.log({ message: `Processing field ${internalName} (${displayName}) for list ${lc.Title}.`, level: LogLevel.Info });
-        fieldXml = xmljs.json2xml(fXmlJson);
         fXmlJson.elements[0].attributes.DisplayName = internalName;
+        fieldXml = xmljs.json2xml(fXmlJson);
 
         // Looks like e.g. lookup fields can't be updated, so we'll need to re-create the field
         try {
