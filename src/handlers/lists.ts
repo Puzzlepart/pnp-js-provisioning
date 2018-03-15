@@ -119,22 +119,22 @@ export class Lists extends HandlerBase {
     private async processField(web: Web, lc: IList, fieldXml: string): Promise<any> {
         const list = web.lists.getByTitle(lc.Title);
         const fXmlJson = JSON.parse(xmljs.xml2json(fieldXml));
-        const fAttr = fXmlJson.elements[0].attributes;
+        const fieldAttr = fXmlJson.elements[0].attributes;
 
-        const fieldName = fAttr.Name;
-        const fieldDisplayName = fAttr.DisplayName;
+        const fieldName = fieldAttr.Name;
+        const fieldDisplayName = fieldAttr.DisplayName;
 
-        Logger.log({ message: `Processing field ${fieldName} (${fieldDisplayName}) for list ${lc.Title}.`, level: LogLevel.Info });
+        Logger.log({ message: `Processing field ${fieldName} (${fieldDisplayName}) for list ${lc.Title}.`, level: LogLevel.Info, data: fieldAttr });
         fXmlJson.elements[0].attributes.DisplayName = fieldName;
         fieldXml = xmljs.json2xml(fXmlJson);
 
         // Looks like e.g. lookup fields can't be updated, so we'll need to re-create the field
         try {
-            let field = await list.fields.getById(fAttr.ID);
+            let field = await list.fields.getById(fieldAttr.ID);
             await field.delete();
             Logger.log({ message: `Field ${fieldName} (${fieldDisplayName}) successfully deleted from list ${lc.Title}.`, level: LogLevel.Info });
         } catch (err) {
-            Logger.log({ message: `Field does not exist ${fieldName} (${fieldDisplayName}) in list ${lc.Title}.`, level: LogLevel.Info });
+            Logger.log({ message: `Field ${fieldName} (${fieldDisplayName}) does not exist in list ${lc.Title}.`, level: LogLevel.Info });
         }
 
         // Looks like e.g. lookup fields can't be updated, so we'll need to re-create the field
